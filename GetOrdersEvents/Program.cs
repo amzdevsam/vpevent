@@ -1,5 +1,7 @@
+using GetOrdersEvents.Function.Domain.Services;
 using GetOrdersEvents.Function.Domain.Settings;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Extensions.OpenApi.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,12 +20,14 @@ var host = new HostBuilder()
             .AddJsonFile($"appsettings.{_environmentName}.json", optional: true, reloadOnChange: false)
             .AddEnvironmentVariables();
     })
-    .ConfigureFunctionsWorkerDefaults(p =>
+    .ConfigureFunctionsWorkerDefaults(worker =>
     {
-        p.Services.AddOptions<SftpSettings>().Configure<IConfiguration>((settings, configuration) =>
+        worker.Services.AddScoped<IFtpService, FtpService>();
+        worker.Services.AddOptions<SftpSettings>().Configure<IConfiguration>((settings, configuration) =>
         {
             configuration.Bind("SftpSettings", settings);
         });
+        worker.UseNewtonsoftJson();
     })
     .ConfigureServices(services =>
     {

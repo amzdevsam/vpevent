@@ -37,7 +37,7 @@ namespace GetOrdersEvents
         [OpenApiOperation("GetOrdersEvents-Spec", "GetOrdersEvents", Description = "Get events for an ordering party between two dates")]
         [OpenApiRequestBody("application/json", typeof(RequestEvent))]
         [OpenApiResponseWithoutBody(HttpStatusCode.OK, CustomHeaderType = typeof(HttpResponseData))]
-        public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestData req, 
+        public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequestData req, 
             [FromBody]RequestEvent requestEvent)
         {
 

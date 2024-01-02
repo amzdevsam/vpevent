@@ -24,13 +24,11 @@ namespace GetOrdersEvents
     {
         private readonly ILogger _logger;
         private readonly SftpSettings _sftpSettings;
-        private readonly IFtpService _ftpService;
 
-        public GetOrdersEvents(ILoggerFactory loggerFactory, IOptions<SftpSettings> sftpSettings, IFtpService ftpService)
+        public GetOrdersEvents(ILoggerFactory loggerFactory, IOptions<SftpSettings> sftpSettings)
         {
             _logger = loggerFactory.CreateLogger<GetOrdersEvents>();
             _sftpSettings = sftpSettings.Value;
-            _ftpService = ftpService;
         }
 
         [Function("GetOrdersEvents")]
@@ -40,7 +38,12 @@ namespace GetOrdersEvents
         public async Task<HttpResponseData> Run([HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequestData req, 
             [FromBody]RequestEvent requestEvent)
         {
-
+            var ftpService = new FtpService(new AkaneaFtpCredential
+            {
+                Host = "edi.akanea.com",
+                Username = "edieol/virbsh",
+                Password = "4ueTaL69JHeU"
+            });
             _logger.LogInformation("C# HTTP trigger function processed a request.");
             if (requestEvent.StartDate > requestEvent.EndDate)
             {
@@ -49,26 +52,40 @@ namespace GetOrdersEvents
             }
             var response = req.CreateResponse(HttpStatusCode.OK);
 
-            var files = _ftpService.GetFiles(requestEvent.StartDate, requestEvent.EndDate);
-            List<Event> events = new();
-
-            if (files.Any())
+            try
             {
-                Parallel.ForEach(files, file =>
+                ftpService.Connect();
+                var files = ftpService.GetFiles(requestEvent.StartDate, requestEvent.EndDate);
+                List<Event> events = new();
+
+                if (files.Any())
                 {
-                    var bytes = _ftpService.DownloadBytes(file.FullName);
-                    string utfString = Encoding.UTF8.GetString(bytes, 0, bytes.Length);
-                    XmlSerializer serializer = new(typeof(Flux));
-                    using (StringReader reader = new(utfString))
+                    foreach(var file in files)
                     {
-                        var test = serializer.Deserialize(reader) as Flux;
-                        events.AddRange(Mapping.FromFluxAkanea(test).Events);
+                        var bytes = ftpService.DownloadBytes(file.FullName);
+                        string utfString = Encoding.UTF8.GetString(bytes, 0, bytes.Length);
+                        XmlSerializer serializer = new(typeof(Flux));
+                        using (StringReader reader = new(utfString))
+                        {
+                            var test = serializer.Deserialize(reader) as Flux;
+                            events.AddRange(Mapping.FromFluxAkanea(test).Events);
+                        }
                     }
-                });
-                await response.WriteAsJsonAsync(events);
+                    await response.WriteAsJsonAsync(events);
+                }
+                else
+                    response = req.CreateResponse(HttpStatusCode.NoContent);
             }
-            else
-                response = req.CreateResponse(HttpStatusCode.NoContent);
+            catch (Exception ex)
+            {
+                _logger.LogError($"[GetOrdersEventsFunc] Error : {ex.Message}");
+                response = req.CreateResponse(HttpStatusCode.InternalServerError);
+            }
+            finally
+            {
+                ftpService.Disconnect();
+            }
+            
                
             return response;
         }

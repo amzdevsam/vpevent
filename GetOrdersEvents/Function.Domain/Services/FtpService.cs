@@ -13,56 +13,42 @@ namespace GetOrdersEvents.Function.Domain.Services
 {
     public class FtpService : IFtpService
     {
-        private readonly ILogger _logger;
 
-        public FtpService(ILoggerFactory loggerFactory)
+        private readonly FtpClient _ftpClient;
+        public FtpService(AkaneaFtpCredential akaneaFtpCredential)
         {
-            _logger = loggerFactory.CreateLogger<FtpService>();
+            _ftpClient = new FtpClient(akaneaFtpCredential.Host, akaneaFtpCredential.Username, akaneaFtpCredential.Password);
         }
 
         public byte[] DownloadBytes(string fullName)
         {
-            byte[] bytes = null;
-            using (FtpClient ftpClient = new("edi.akanea.com", "edieol/virbsh", "4ueTaL69JHeU"))
-            {
-                try
-                {
-                    ftpClient.Connect();
-                    ftpClient.DownloadBytes(out bytes, fullName); 
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error while retrieving files from SFTP");
-                }
-                finally
-                {
-                    ftpClient.Disconnect();
-                }
-            }
+            _ftpClient.DownloadBytes(out byte[] bytes, fullName);
             return bytes;
         }
 
         public IEnumerable<FtpListItem> GetFiles(DateTime startDate, DateTime endDate)
         {
-            IEnumerable<FtpListItem> files = new List<FtpListItem>();
-            using (FtpClient ftpClient = new("edi.akanea.com", "edieol/virbsh", "4ueTaL69JHeU"))
-            {
-                try
-                {
-                    ftpClient.Connect();
-                    files = ftpClient.GetListing("/out")
+            return _ftpClient.GetListing("/out")
                         .Where(x => x.Modified >= startDate && x.Modified <= endDate);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error while retrieving files from SFTP");
-                }
-                finally
-                {
-                    ftpClient.Disconnect();
-                }
-            }
-            return files;
         }
+
+        public void Connect()
+        {
+            if (!_ftpClient.IsConnected)
+                _ftpClient.Connect();
+        }
+
+        public void Disconnect()
+        {
+            if (_ftpClient.IsConnected)
+                _ftpClient.Disconnect();
+        }
+    }
+
+    public class AkaneaFtpCredential
+    {
+         public string Host { get; internal set; }
+        public string Username { get; internal set; }
+        public string Password { get; internal set; }
     }
 }
